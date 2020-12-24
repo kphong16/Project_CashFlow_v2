@@ -21,7 +21,7 @@ class account(object):
         
     #### INITIAL SETTING ####
     def setdf(self):
-        self.dfcol = ['add_scdd', 'add_scdd_cum', 'sub_scdd', 'sub_scdd_cum', 'bal_strt', 'amt_add', 'amt_sub', 'bal_end', 'amt_rsdl']
+        self.dfcol = ['add_scdd', 'add_scdd_cum', 'sub_scdd', 'sub_scdd_cum', 'bal_strt', 'amt_add', 'amt_sub', 'bal_end', 'add_rsdl_cum', 'sub_rsdl_cum']
         self.dfidx = np.arange(-1, self.mtrt + 1)
         self.df = pd.DataFrame(np.zeros([len(self.dfidx), len(self.dfcol)]), columns=self.dfcol, index=self.dfidx)
         self.df.loc[self.add_scdd_ipt.index, 'add_scdd'] = self.add_scdd_ipt
@@ -48,11 +48,22 @@ class account(object):
         
         self.df.loc[index, 'amt_sub'] += amt
         self._cal_bal()
+
     def calamt(self, index, amt, note=""):
         if amt >= 0:
             self.addamt(index, amt, note)
         else:
             self.subamt(index, -amt, note)
+
+    def add_exctn(self, idx=0, rate=1):
+        self.addamt(idx, self.add_scdd_cum(idx) * rate)
+        for idx in np.arange(idx, self.mtrt+1):
+            self.addamt(idx, (self.add_scdd_cum(idx) - self.add_scdd_cum(idx-1)) * rate)
+
+    def sub_exctn(self, idx=0, rate=1):
+        self.subamt(idx, self.sub_scdd_cum(idx) * rate)
+        for idx in np.arange(idx, self.mtrt+1):
+            self.subamt(idx, (self.sub_scdd_cum(idx) - self.sub_scdd_cum(idx-1)) * rate)
     #### INPUT DATA ####
     
     #### OUTPUT DATA ####
@@ -73,18 +84,30 @@ class account(object):
             return self.df.loc[:, 'add_scdd']
         else:
             return self.df.loc[idx, 'add_scdd']
-        
-    def sub_scdd(self, idx=None):
+
+    def add_scdd_cum(self, idx=None):
         if idx is None:
-            return self.df.loc[:, 'sub_scdd']
+            return self.df.loc[:, 'add_scdd_cum']
         else:
-            return self.df.loc[idx, 'sub_scdd']
+            return self.df.loc[idx, 'add_scdd_cum']
+
+    def sub_scdd_cum(self, idx=None):
+        if idx is None:
+            return self.df.loc[:, 'sub_scdd_cum']
+        else:
+            return self.df.loc[idx, 'sub_scdd_cum']
     
-    def amt_rsdl(self, idx=None):
+    def add_rsdl(self, idx=None):
         if idx is None:
-            return self.df.loc[:, 'amt_rsdl']
+            return self.df.loc[:, 'add_rsdl_cum']
         else:
-            return self.df.loc[idx, 'amt_rsdl']
+            return self.df.loc[idx, 'add_rsdl_cum']
+
+    def sub_rsdl(self, idx=None):
+        if idx is None:
+            return self.df.loc[:, 'sub_rsdl_cum']
+        else:
+            return self.df.loc[idx, 'sub_rsdl_cum']
     #### OUTPUT DATA ####
     
     #### CALCULATE DATA ####
@@ -98,8 +121,8 @@ class account(object):
             self.df.loc[idx, 'bal_strt'] = self.df.loc[idx-1, 'bal_end']
             self.df.loc[idx, 'bal_end'] = self.df.loc[idx, 'bal_strt'] + self.df.loc[idx, 'amt_add'] \
                                           - self.df.loc[idx, 'amt_sub']
-        self.df.loc[:, 'amt_rsdl'] = self.df.loc[:, 'add_scdd_cum'] - self.df.loc[:, 'sub_scdd_cum'] \
-                                     - self.df.loc[:, 'bal_end']
+        self.df.loc[:, 'add_rsdl_cum'] = self.df.loc[:, 'add_scdd_cum'] - self.df.loc[:, 'amt_add'].cumsum()
+        self.df.loc[:, 'sub_rsdl_cum'] = self.df.loc[:, 'sub_scdd_cum'] - self.df.loc[:, 'amt_sub'].cumsum()
     #### CALCULATE DATA ####
     
     
