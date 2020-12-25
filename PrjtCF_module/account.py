@@ -61,9 +61,15 @@ class account(object):
             self.addamt(idx, (self.add_scdd_cum(idx) - self.add_scdd_cum(idx-1)) * rate)
 
     def sub_exctn(self, idx=0, rate=1):
-        self.subamt(idx, self.sub_scdd_cum(idx) * rate)
-        for idx in np.arange(idx, self.mtrt+1):
-            self.subamt(idx, (self.sub_scdd_cum(idx) - self.sub_scdd_cum(idx-1)) * rate)
+        if type(idx) in [int]:
+            self.subamt(idx, self.sub_scdd_cum(idx) * rate)
+            for idx in np.arange(idx+1, self.mtrt+1):
+                self.subamt(idx, (self.sub_scdd_cum(idx) - self.sub_scdd_cum(idx-1)) * rate)
+        else:
+            for i, tmpidx in enumerate(idx):
+                self.subamt(tmpidx, self.sub_scdd_cum(tmpidx) * rate[i])
+                for k in np.arange(tmpidx+1, self.mtrt + 1):
+                    self.subamt(k, (self.sub_scdd_cum(k) - self.sub_scdd_cum(k - 1)) * rate[i])
     #### INPUT DATA ####
     
     #### OUTPUT DATA ####
@@ -126,26 +132,30 @@ class account(object):
     #### CALCULATE DATA ####
     
     
-class accmerge(object):
-    def __init__(self, accdct):
-        self.accdct = accdct # dictionary
+class merge(object):
+    def __init__(self, dct):
+        self.dct = dct # dictionary
     
-    def df(self, var='amt_scdd'):
-        tmp_dct = pd.DataFrame({x: self.accdct[x].df.loc[:, var] for x in self.accdct})
-        return tmp_dct
-    
+    def df(self, var=None):
+        if var is None:
+            tmp_df = sum([self.dct[x].df for x in self.dct])
+            return tmp_df
+        else:
+            tmp_dct = pd.DataFrame({x: self.dct[x].df.loc[:, var] for x in self.dct})
+            return tmp_dct
+
     def title(self):
-        tmp_dct = pd.Series({x: self.accdct[x].title for x in self.accdct})
+        tmp_dct = pd.Series({x: self.dct[x].title for x in self.dct})
         return tmp_dct
     
     def tag(self):
-        tmp_dct = pd.Series({x: self.accdct[x].tag for x in self.accdct})
+        tmp_dct = pd.Series({x: self.dct[x].tag for x in self.dct})
         return tmp_dct
     
     def mtrt(self):
-        tmp_dct = pd.Series({x: self.accdct[x].mtrt for x in self.accdct})
+        tmp_dct = pd.Series({x: self.dct[x].mtrt for x in self.dct})
         return tmp_dct
     
     def note(self):
-        tmp_dct = pd.Series({x: self.accdct[x].note for x in self.accdct})
+        tmp_dct = pd.Series({x: self.dct[x].note for x in self.dct})
         return tmp_dct
