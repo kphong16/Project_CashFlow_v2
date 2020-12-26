@@ -7,12 +7,14 @@ class account(object):
                 title = None, # string
                 tag = None, # string tuple
                 mtrt = 0, # int
+                bal_strt = 0, # int
                 add_scdd_ipt = pd.Series([0], index=[0]), # Series
                 sub_scdd_ipt = pd.Series([0], index=[0]), # Series
                 note = ""): # string
         self.title = title
         self.tag = tag
         self.mtrt = mtrt
+        self.bal_strt = bal_strt
         self.add_scdd_ipt = add_scdd_ipt
         self.sub_scdd_ipt = sub_scdd_ipt
         self.note = note
@@ -21,9 +23,11 @@ class account(object):
         
     #### INITIAL SETTING ####
     def setdf(self):
-        self.dfcol = ['add_scdd', 'add_scdd_cum', 'sub_scdd', 'sub_scdd_cum', 'bal_strt', 'amt_add', 'amt_sub', 'bal_end', 'add_rsdl_cum', 'sub_rsdl_cum']
+        self.dfcol = ['add_scdd', 'add_scdd_cum', 'sub_scdd', 'sub_scdd_cum', 'bal_strt', 'amt_add', 'amt_add_cum',
+                      'amt_sub', 'amt_sub_cum', 'bal_end', 'add_rsdl_cum', 'sub_rsdl_cum']
         self.dfidx = np.arange(-1, self.mtrt + 1)
         self.df = pd.DataFrame(np.zeros([len(self.dfidx), len(self.dfcol)]), columns=self.dfcol, index=self.dfidx)
+        self.df.loc[-1, 'bal_strt'] = self.bal_strt
         self.df.loc[self.add_scdd_ipt.index, 'add_scdd'] = self.add_scdd_ipt
         self.df.loc[self.sub_scdd_ipt.index, 'sub_scdd'] = self.sub_scdd_ipt
         self._cal_bal()
@@ -35,6 +39,14 @@ class account(object):
     #### INITIAL SETTING ####
     
     #### INPUT DATA ####
+    def addscdd(self, index, amt):
+        self.df.loc[index, 'add_scdd'] += amt
+        self._cal_bal()
+
+    def subscdd(self, index, amt):
+        self.df.loc[index, 'sub_scdd'] += amt
+        self._cal_bal()
+
     def addamt(self, index, amt, note=""):
         tmpjnl = pd.DataFrame([[amt, 0, note]], columns=self.jnlcol, index=[index])
         self.jnl = pd.concat([self.jnl, tmpjnl])
@@ -91,6 +103,18 @@ class account(object):
         else:
             return self.df.loc[idx, 'add_scdd']
 
+    def amt_add_cum(self, idx=None):
+        if idx is None:
+            return self.df.loc[:, 'amt_add_cum']
+        else:
+            return self.df.loc[idx, 'amt_add_cum']
+
+    def amt_sub_cum(self, idx=None):
+        if idx is None:
+            return self.df.loc[:, 'amt_sub_cum']
+        else:
+            return self.df.loc[idx, 'amt_sub_cum']
+
     def add_scdd_cum(self, idx=None):
         if idx is None:
             return self.df.loc[:, 'add_scdd_cum']
@@ -120,6 +144,8 @@ class account(object):
     def _cal_bal(self):
         self.df.loc[:, 'add_scdd_cum'] = self.df.loc[:, 'add_scdd'].cumsum()
         self.df.loc[:, 'sub_scdd_cum'] = self.df.loc[:, 'sub_scdd'].cumsum()
+        self.df.loc[:, 'amt_add_cum'] = self.df.loc[:, 'amt_add'].cumsum()
+        self.df.loc[:, 'amt_sub_cum'] = self.df.loc[:, 'amt_sub'].cumsum()
         
         self.df.loc[-1, 'bal_end'] = self.df.loc[-1, 'bal_strt'] + self.df.loc[-1, 'amt_add'] \
                                      - self.df.loc[-1, 'amt_sub']
@@ -127,8 +153,8 @@ class account(object):
             self.df.loc[idx, 'bal_strt'] = self.df.loc[idx-1, 'bal_end']
             self.df.loc[idx, 'bal_end'] = self.df.loc[idx, 'bal_strt'] + self.df.loc[idx, 'amt_add'] \
                                           - self.df.loc[idx, 'amt_sub']
-        self.df.loc[:, 'add_rsdl_cum'] = self.df.loc[:, 'add_scdd_cum'] - self.df.loc[:, 'amt_add'].cumsum()
-        self.df.loc[:, 'sub_rsdl_cum'] = self.df.loc[:, 'sub_scdd_cum'] - self.df.loc[:, 'amt_sub'].cumsum()
+        self.df.loc[:, 'add_rsdl_cum'] = self.df.loc[:, 'add_scdd_cum'] - self.df.loc[:, 'amt_add_cum']
+        self.df.loc[:, 'sub_rsdl_cum'] = self.df.loc[:, 'sub_scdd_cum'] - self.df.loc[:, 'amt_sub_cum']
     #### CALCULATE DATA ####
     
     
@@ -159,3 +185,35 @@ class merge(object):
     def note(self):
         tmp_dct = pd.Series({x: self.dct[x].note for x in self.dct})
         return tmp_dct
+
+
+class Loan(object):
+    def __init__(self,
+                 title=None, # string
+                 tag=None, # string tuple
+                 mtrt = 0, # int
+                 ntnl = 0.0, # float
+                 rate = 0.0, # float
+                 note=""): # string
+        self.title = title
+        self.tag = tag
+        self.mtrt = mtrt
+        self.ntnl = ntnl
+        self.rate = rate
+        self.note = note
+        self.setdf()
+
+    def setdf(self):
+        self.amt = account(title=self.title, tag=self.tag, mtrt=self.mtrt,
+                           bal_strt=self.ntnl,
+                           sub_scdd_ipt=pd.Series([self.ntnl], index=[0]),
+                           add_scdd_ipt=pd.Series([self.ntnl], index=[self.mtrt]),
+                           note=self.note)
+        self.IR = account(mtrt=self.mtrt)
+
+    @property
+    def df(self):
+        tmp_df = {'amt_loan': self.amt.df.loc[:, 'amt_sub_cum'] - self.amt.df.loc[:, 'amt_add_cum'],
+                  'amt_IR_scdd': self.IR.df.loc[:, 'add_scdd'],
+                  'amt_IR_paid': self.IR.df.loc[:, 'amt_add']}
+        return pd.DataFrame(tmp_df)
