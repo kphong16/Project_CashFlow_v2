@@ -95,7 +95,7 @@ class account(object):
         if idx is None:
             return self.df.loc[:, 'bal_end']
         else:
-            return self.df.loc[idx, 'Bal_end']
+            return self.df.loc[idx, 'bal_end']
         
     def add_scdd(self, idx=None):
         if idx is None:
@@ -161,14 +161,15 @@ class account(object):
 class merge(object):
     def __init__(self, dct):
         self.dct = dct # dictionary
-    
-    def df(self, var=None):
-        if var is None:
-            tmp_df = sum([self.dct[x].df for x in self.dct])
-            return tmp_df
-        else:
-            tmp_dct = pd.DataFrame({x: self.dct[x].df.loc[:, var] for x in self.dct})
-            return tmp_dct
+
+    @property
+    def df(self):
+        tmp_dct = sum([self.dct[x].df for x in self.dct])
+        return tmp_dct
+
+    def df_var(self, var):
+        tmp_dct = pd.DataFrame({x: self.dct[x].df.loc[:, var] for x in self.dct})
+        return tmp_dct
 
     def title(self):
         tmp_dct = pd.Series({x: self.dct[x].title for x in self.dct})
@@ -217,3 +218,12 @@ class Loan(object):
                   'amt_IR_scdd': self.IR.df.loc[:, 'add_scdd'],
                   'amt_IR_paid': self.IR.df.loc[:, 'amt_add']}
         return pd.DataFrame(tmp_df)
+
+    def loan_rsdl(self, idx):
+        return self.amt.df.loc[idx, 'amt_sub_cum'] - self.amt.df.loc[idx, 'amt_add_cum']
+
+    def is_repaid(self, idx):
+        if self.amt.df.loc[idx, 'sub_rsdl_cum'] <= 0 and self.loan_rsdl(idx) <= 0:
+            return True
+        else:
+            return False
